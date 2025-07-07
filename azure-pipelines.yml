@@ -14,9 +14,9 @@ variables:
   stackName: 'DeliveryAppStack'
   cloudFormationTemplate: '$(System.DefaultWorkingDirectory)/cloudformation.yml'
   keyName: 'delivery-keypair'
-  subnetId: 'subnet-0601e2496fa2b037b' # Replace with your public subnet ID
-  vpcId: 'vpc-093582a4fa8c1828e'
-  mysqlPassword: '$(DeliveryAppSecrets.mysqlPassword)' # Reference from variable group
+  subnetId: 'subnet-0601e2496fa2b037b' # Public subnet ID
+  vpcId: 'vpc-093582a4fa8c1828e' # VPC ID
+  mysqlPassword: 'your_password' # Replace with your actual MySQL password, mark as secret in Azure DevOps
 
 jobs:
   - job: DeployInfrastructure
@@ -60,7 +60,7 @@ jobs:
             aws cloudformation deploy \
               --template-file $(cloudFormationTemplate) \
               --stack-name $(stackName) \
-              --parameter-overrides KeyName=$(keyName) SubnetId=$(subnetId) MySQLPassword=$(mysqlPassword) \
+              --parameter-overrides KeyName=$(keyName) SubnetId=$(subnetId) VpcId=$(vpcId) MySQLPassword=$(mysqlPassword) \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
               --no-fail-on-empty-changeset || \
             { echo "Deployment failed. Fetching stack events..."; \
