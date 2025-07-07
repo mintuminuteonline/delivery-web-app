@@ -1,14 +1,15 @@
 Parameters:
   KeyName:
-    Type: AWS::EC2::KeyPair::KeyName
+    Type: String
     Description: Name of an existing EC2 KeyPair
+    Default: delivery-keypair
   SubnetId:
-    Type: AWS::EC2::Subnet::Id
+    Type: String
     Description: Subnet ID for the EC2 instance
     Default: subnet-0601e2496fa2b037b
 
   VpcId:
-    Type: AWS::EC2::VPC::Id
+    Type: String
     Description: VPC ID for the security group and EC2 instance
     Default: vpc-093582a4fa8c1828e
   MySQLPassword:
@@ -25,8 +26,6 @@ Resources:
       Tags:
         - Key: Name
           Value: DeliveryAppBucket
-        - Key: aws:cloudformation:stack-name
-          Value: !Ref AWS::StackName
 
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -61,8 +60,6 @@ Resources:
       Tags:
         - Key: Name
           Value: DeliveryAppInstance
-        - Key: aws:cloudformation:stack-name
-          Value: !Ref AWS::StackName
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -85,8 +82,6 @@ Resources:
       Tags:
         - Key: Name
           Value: DeliveryAppSecurityGroup
-        - Key: aws:cloudformation:stack-name
-          Value: !Ref AWS::StackName
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -113,8 +108,6 @@ Resources:
       Tags:
         - Key: Name
           Value: DeliveryAppEC2Role
-        - Key: aws:cloudformation:stack-name
-          Value: !Ref AWS::StackName
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
