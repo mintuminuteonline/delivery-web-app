@@ -1,37 +1,72 @@
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for the EC2 instance
+  MySQLPassword:
+    Type: String
+    NoEcho: true
+    Description: Password for MySQL root user
+    Default: your_password
+
 Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: delivery-web-app-bucket-20250707
+      Tags:
+        - Key: Name
+          Value: DeliveryAppBucket
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
+
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t2.micro
-      ImageId: ami-020cba7c55df1f615 # Ubuntu 20.04 LTS
-      KeyName: delivery-keypair
+      ImageId: ami-020cba7c55df1f615 # Ubuntu 20.04 LTS in us-east-1 (verify for 2025)
+      KeyName: !Ref KeyName
       SecurityGroupIds:
         - !Ref SecurityGroup
+      SubnetId: !Ref SubnetId
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref EC2InstanceProfile
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
           apt update
-          apt install -y openjdk-11-jdk maven mysql-server docker.io nginx
+          apt install -y openjdk-11-jdk maven mysql-server docker.io nginx awscli
           systemctl enable mysql docker nginx
           systemctl start mysql docker nginx
-          mysql -e "CREATE DATABASE delivery_db;"
-          mysql -e "CREATE USER 'root'@'localhost' IDENTIFIED BY 'your_password';"
-          mysql -e "GRANT ALL PRIVILEGES ON delivery_db.* TO 'root'@'localhost';"
-          mysql -e "FLUSH PRIVILEGES;"
+          # Wait for MySQL to be ready
+          for i in {1..30}; do
+            if mysqladmin ping -u root --silent; then
+              break
+            fi
+            sleep 2
+          done
+          mysql -u root -e "CREATE DATABASE IF NOT EXISTS delivery_db;"
+          mysql -u root -e "CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY '${MySQLPassword}';"
+          mysql -u root -e "GRANT ALL PRIVILEGES ON delivery_db.* TO 'root'@'localhost';"
+          mysql -u root -e "FLUSH PRIVILEGES;"
           usermod -aG docker ubuntu
+      Tags:
+        - Key: Name
+          Value: DeliveryAppInstance
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
+
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow SSH, HTTP, HTTPS, MySQL
+      GroupDescription: Allow SSH, HTTP, HTTPS
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 0.0.0.0/0
+          CidrIp: 0.0.0.0/0 # Consider restricting to CI/CD IP
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
@@ -43,9 +78,58 @@ Resources:
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: !Ref SecurityGroup # Restrict MySQL to self
+      Tags:
+        - Key: Name
+          Value: DeliveryAppSecurityGroup
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::delivery-web-app-bucket-20250707/*
+                  - !Sub arn:aws:s3:::delivery-web-app-bucket-20250707
+      Tags:
+        - Key: Name
+          Value: DeliveryAppEC2Role
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
 Outputs:
   InstancePublicIP:
     Value: !GetAtt EC2Instance.PublicIp
+    Condition: HasPublicIP
   WebsiteURL:
     Value: !Sub http://${EC2Instance.PublicIp}:80
+    Condition: HasPublicIP
+
+Conditions:
+  HasPublicIP:
+    Fn::Not:
+      - Fn::Equals:
+          - !GetAtt EC2Instance.PublicIp
+          - ''

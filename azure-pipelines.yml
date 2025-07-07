@@ -14,6 +14,8 @@ variables:
   stackName: 'DeliveryAppStack'
   cloudFormationTemplate: '$(System.DefaultWorkingDirectory)/cloudformation.yml'
   keyName: 'delivery-keypair'
+  subnetId: '<your-public-subnet-id>' # Replace with your public subnet ID
+  mysqlPassword: '$(mysqlPassword)' # Set in pipeline variables or secure variables
 
 jobs:
   - job: DeployInfrastructure
@@ -57,16 +59,21 @@ jobs:
             aws cloudformation deploy \
               --template-file $(cloudFormationTemplate) \
               --stack-name $(stackName) \
-              --parameter-overrides KeyName=$(keyName) \
-              --capabilities CAPABILITY_IAM \
+              --parameter-overrides KeyName=$(keyName) SubnetId=$(subnetId) MySQLPassword=$(mysqlPassword) \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
               --no-fail-on-empty-changeset || \
             { echo "Deployment failed. Fetching stack events..."; \
               aws cloudformation describe-stack-events --stack-name $(stackName) --region $(awsRegion); \
               exit 1; }
-            echo "Retrieving EC2 public IP..."
+            echo "Waiting for stack to complete..."
+            aws cloudformation wait stack-create-complete --stack-name $(stackName) --region $(awsRegion) || \
+            { echo "Stack creation failed"; exit 1; }
+            echo "Retrieving stack outputs..."
+            aws cloudformation describe-stacks --stack-name $(stackName) --region $(awsRegion)
             ec2_public_ip=$(aws cloudformation describe-stacks --stack-name $(stackName) --region $(awsRegion) --query 'Stacks[0].Outputs[?OutputKey==`InstancePublicIP`].OutputValue' --output text)
             if [ -z "$ec2_public_ip" ]; then
               echo "Error: Failed to retrieve EC2 public IP"
+              aws ec2 describe-instances --region $(awsRegion) --filters "Name=tag:aws:cloudformation:stack-name,Values=$(stackName)" --query 'Reservations[].Instances[].{InstanceId:InstanceId,State:State.Name,PublicIp:PublicIpAddress}'
               exit 1
             fi
             echo "EC2 Public IP: $ec2_public_ip"
