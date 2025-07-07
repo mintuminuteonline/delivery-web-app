@@ -155,6 +155,10 @@ jobs:
             echo "EC2 Host: $(ec2Host)"
             if [ -z "$(ec2Host)" ]; then
               echo "Error: ec2Host variable is empty"
+              echo "Debug: Checking CloudFormation stack outputs..."
+              aws cloudformation describe-stacks --stack-name $(stackName) --region $(awsRegion) --query 'Stacks[0].Outputs' --output json || echo "Failed to retrieve stack outputs"
+              echo "Debug: Checking EC2 instances for stack $(stackName)..."
+              aws ec2 describe-instances --region $(awsRegion) --filters "Name=tag:aws:cloudformation:stack-name,Values=$(stackName)" --query 'Reservations[].Instances[].{InstanceId:InstanceId,State:State.Name,PublicIp:PublicIpAddress}' --output json || echo "Failed to retrieve EC2 instances"
               exit 1
             fi
             cp $(sshKeyFile.secureFilePath) delivery-keypair.pem
@@ -170,3 +174,5 @@ jobs:
             EOF
         env:
           bucketName: $(bucketName)
+          stackName: 'DeliveryAppStack'
+          awsRegion: 'us-east-1'
