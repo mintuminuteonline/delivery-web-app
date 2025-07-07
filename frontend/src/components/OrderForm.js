@@ -7,7 +7,7 @@ function OrderForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await axios.post('http://<ec2-public-ip>:8080/api/orders', {
+    await axios.post('http://34.207.100.161:8080/api/orders', {
       customerName,
       item,
       status: 'Pending'

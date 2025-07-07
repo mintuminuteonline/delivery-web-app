@@ -5,13 +5,13 @@ function OrderList() {
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
-    axios.get('http://<ec2-public-ip>:8080/api/orders')
+    axios.get('http://34.207.100.161:8080/api/orders')
       .then(response => setOrders(response.data));
   }, []);
 
   const updateStatus = async (id, status) => {
     const order = orders.find(o => o.id === id);
-    await axios.put(`http://<ec2-public-ip>:8080/api/orders/${id}`, { ...order, status });
+    await axios.put(`http://34.207.100.161:8080/api/orders/${id}`, { ...order, status });
     setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
   };
 
