@@ -5,9 +5,12 @@ Parameters:
   SubnetId:
     Type: AWS::EC2::Subnet::Id
     Description: Subnet ID for the EC2 instance
+    Default: subnet-0601e2496fa2b037b
+
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: VPC ID for the security group and EC2 instance
+    Default: vpc-093582a4fa8c1828e
   MySQLPassword:
     Type: String
     NoEcho: true
