@@ -19,8 +19,6 @@ Resources:
       Tags:
         - Key: Name
           Value: DeliveryAppBucket
-        - Key: aws:cloudformation:stack-name
-          Value: !Ref AWS::StackName
 
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -52,11 +50,6 @@ Resources:
           mysql -u root -e "GRANT ALL PRIVILEGES ON delivery_db.* TO 'root'@'localhost';"
           mysql -u root -e "FLUSH PRIVILEGES;"
           usermod -aG docker ubuntu
-      Tags:
-        - Key: Name
-          Value: DeliveryAppInstance
-        - Key: aws:cloudformation:stack-name
-          Value: !Ref AWS::StackName
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -98,11 +91,6 @@ Resources:
                 Resource:
                   - !Sub arn:aws:s3:::delivery-web-app-bucket-20250707/*
                   - !Sub arn:aws:s3:::delivery-web-app-bucket-20250707
-      Tags:
-        - Key: Name
-          Value: DeliveryAppEC2Role
-        - Key: aws:cloudformation:stack-name
-          Value: !Ref AWS::StackName
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
