@@ -15,6 +15,7 @@ variables:
   cloudFormationTemplate: '$(System.DefaultWorkingDirectory)/cloudformation.yml'
   keyName: 'delivery-keypair'
   subnetId: 'subnet-0601e2496fa2b037b' # Replace with your public subnet ID
+  vpcId: 'vpc-093582a4fa8c1828e'
   mysqlPassword: '$(DeliveryAppSecrets.mysqlPassword)' # Reference from variable group
 
 jobs:

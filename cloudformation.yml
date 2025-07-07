@@ -5,6 +5,9 @@ Parameters:
   SubnetId:
     Type: AWS::EC2::Subnet::Id
     Description: Subnet ID for the EC2 instance
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for the security group and EC2 instance
   MySQLPassword:
     Type: String
     NoEcho: true
@@ -19,17 +22,19 @@ Resources:
       Tags:
         - Key: Name
           Value: DeliveryAppBucket
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
 
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t2.micro
-      ImageId: ami-0a0e5d9c7acc336f1 # Ubuntu 20.04 LTS in us-east-1 (verify for 2025)
+      ImageId: ami-020cba7c55df1f615 # Ubuntu 20.04 LTS in us-east-1 (verify for 2025)
       KeyName: !Ref KeyName
       SecurityGroupIds:
         - !Ref SecurityGroup
       SubnetId: !Ref SubnetId
-      # AssociatePublicIpAddress: true
+      AssociatePublicIpAddress: true
       IamInstanceProfile: !Ref EC2InstanceProfile
       UserData:
         Fn::Base64: !Sub |
@@ -50,11 +55,17 @@ Resources:
           mysql -u root -e "GRANT ALL PRIVILEGES ON delivery_db.* TO 'root'@'localhost';"
           mysql -u root -e "FLUSH PRIVILEGES;"
           usermod -aG docker ubuntu
+      Tags:
+        - Key: Name
+          Value: DeliveryAppInstance
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow SSH, HTTP, HTTPS
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -68,6 +79,11 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: DeliveryAppSecurityGroup
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -91,6 +107,11 @@ Resources:
                 Resource:
                   - !Sub arn:aws:s3:::delivery-web-app-bucket-20250707/*
                   - !Sub arn:aws:s3:::delivery-web-app-bucket-20250707
+      Tags:
+        - Key: Name
+          Value: DeliveryAppEC2Role
+        - Key: aws:cloudformation:stack-name
+          Value: !Ref AWS::StackName
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
