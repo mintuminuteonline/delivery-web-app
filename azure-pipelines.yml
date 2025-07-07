@@ -15,7 +15,7 @@ variables:
   cloudFormationTemplate: '$(System.DefaultWorkingDirectory)/cloudformation.yml'
   keyName: 'delivery-keypair'
   subnetId: '<your-public-subnet-id>' # Replace with your public subnet ID
-  mysqlPassword: '$(mysqlPassword)' # Set in pipeline variables or secure variables
+  mysqlPassword: '$(DeliveryAppSecrets.mysqlPassword)' # Reference from variable group
 
 jobs:
   - job: DeployInfrastructure

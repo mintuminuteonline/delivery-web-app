@@ -26,7 +26,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t2.micro
-      ImageId: ami-020cba7c55df1f615 # Ubuntu 20.04 LTS in us-east-1 (verify for 2025)
+      ImageId: ami-0a0e5d9c7acc336f1 # Ubuntu 20.04 LTS in us-east-1 (verify for 2025)
       KeyName: !Ref KeyName
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -122,14 +122,5 @@ Resources:
 Outputs:
   InstancePublicIP:
     Value: !GetAtt EC2Instance.PublicIp
-    Condition: HasPublicIP
   WebsiteURL:
     Value: !Sub http://${EC2Instance.PublicIp}:80
-    Condition: HasPublicIP
-
-Conditions:
-  HasPublicIP:
-    Fn::Not:
-      - Fn::Equals:
-          - !GetAtt EC2Instance.PublicIp
-          - ''
