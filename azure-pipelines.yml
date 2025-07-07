@@ -94,6 +94,10 @@ jobs:
               echo "Error: public/index.html not found"
               exit 1
             fi
+            if [ ! -f "src/index.js" ]; then
+              echo "Error: src/index.js not found"
+              exit 1
+            fi
             npm install
             npm audit fix
             npm run build
