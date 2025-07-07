@@ -2,9 +2,11 @@ Parameters:
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Name of an existing EC2 KeyPair
+    Default: delivery-keypair
   SubnetId:
     Type: AWS::EC2::Subnet::Id
     Description: Subnet ID for the EC2 instance
+    Default: subnet-0601e2496fa2b037b
   MySQLPassword:
     Type: String
     NoEcho: true
