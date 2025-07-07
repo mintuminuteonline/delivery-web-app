@@ -133,46 +133,46 @@ jobs:
             aws s3 cp frontend/build s3://$(bucketName)/frontend/ --recursive || { echo "Error: Failed to upload frontend build"; exit 1; }
             echo "Verifying uploaded files in S3:"
             aws s3 ls s3://$(bucketName)/ --recursive
-  - job: DeployToEC2
-    displayName: 'Deploy to EC2'
-    dependsOn: BuildAndUpload
-    condition: succeeded()
-    variables:
-      ec2Host: $[ dependencies.DeployInfrastructure.outputs['cloudFormation.ec2Host'] ]
-    steps:
-      - checkout: self
-        displayName: 'Checkout GitHub Repository'
-      - task: DownloadSecureFile@1
-        displayName: 'Download SSH Key'
-        name: sshKeyFile
-        inputs:
-          secureFile: 'delivery-keypair.pem'
-      - task: Bash@3
-        displayName: 'Deploy to EC2 via SSH'
-        inputs:
-          targetType: 'inline'
-          script: |
-            echo "EC2 Host: $(ec2Host)"
-            if [ -z "$(ec2Host)" ]; then
-              echo "Error: ec2Host variable is empty"
-              echo "Debug: Checking CloudFormation stack outputs..."
-              aws cloudformation describe-stacks --stack-name $(stackName) --region $(awsRegion) --query 'Stacks[0].Outputs' --output json || echo "Failed to retrieve stack outputs"
-              echo "Debug: Checking EC2 instances for stack $(stackName)..."
-              aws ec2 describe-instances --region $(awsRegion) --filters "Name=tag:aws:cloudformation:stack-name,Values=$(stackName)" --query 'Reservations[].Instances[].{InstanceId:InstanceId,State:State.Name,PublicIp:PublicIpAddress}' --output json || echo "Failed to retrieve EC2 instances"
-              exit 1
-            fi
-            cp $(sshKeyFile.secureFilePath) delivery-keypair.pem
-            chmod 400 delivery-keypair.pem
-            ssh -o StrictHostKeyChecking=no -i delivery-keypair.pem ubuntu@$(ec2Host) << 'EOF'
-              aws s3 cp s3://$(bucketName)/backend.jar /home/ubuntu/backend.jar
-              aws s3 cp s3://$(bucketName)/frontend/ /var/www/html/ --recursive
-              docker stop delivery-backend || true
-              docker rm delivery-backend || true
-              docker run -d --name delivery-backend -p 8080:8080 openjdk:11 java -jar /home/ubuntu/backend.jar
-              sudo systemctl restart nginx
-              echo "Deployment completed on $(ec2Host)"
-            EOF
-        env:
-          bucketName: $(bucketName)
-          stackName: 'DeliveryAppStack'
-          awsRegion: 'us-east-1'
+  # - job: DeployToEC2
+  #   displayName: 'Deploy to EC2'
+  #   dependsOn: BuildAndUpload
+  #   condition: succeeded()
+  #   variables:
+  #     ec2Host: $[ dependencies.DeployInfrastructure.outputs['cloudFormation.ec2Host'] ]
+  #   steps:
+  #     - checkout: self
+  #       displayName: 'Checkout GitHub Repository'
+  #     - task: DownloadSecureFile@1
+  #       displayName: 'Download SSH Key'
+  #       name: sshKeyFile
+  #       inputs:
+  #         secureFile: 'delivery-keypair.pem'
+  #     - task: Bash@3
+  #       displayName: 'Deploy to EC2 via SSH'
+  #       inputs:
+  #         targetType: 'inline'
+  #         script: |
+  #           echo "EC2 Host: $(ec2Host)"
+  #           if [ -z "$(ec2Host)" ]; then
+  #             echo "Error: ec2Host variable is empty"
+  #             echo "Debug: Checking CloudFormation stack outputs..."
+  #             aws cloudformation describe-stacks --stack-name $(stackName) --region $(awsRegion) --query 'Stacks[0].Outputs' --output json || echo "Failed to retrieve stack outputs"
+  #             echo "Debug: Checking EC2 instances for stack $(stackName)..."
+  #             aws ec2 describe-instances --region $(awsRegion) --filters "Name=tag:aws:cloudformation:stack-name,Values=$(stackName)" --query 'Reservations[].Instances[].{InstanceId:InstanceId,State:State.Name,PublicIp:PublicIpAddress}' --output json || echo "Failed to retrieve EC2 instances"
+  #             exit 1
+  #           fi
+  #           cp $(sshKeyFile.secureFilePath) delivery-keypair.pem
+  #           chmod 400 delivery-keypair.pem
+  #           ssh -o StrictHostKeyChecking=no -i delivery-keypair.pem ubuntu@$(ec2Host) << 'EOF'
+  #             aws s3 cp s3://$(bucketName)/backend.jar /home/ubuntu/backend.jar
+  #             aws s3 cp s3://$(bucketName)/frontend/ /var/www/html/ --recursive
+  #             docker stop delivery-backend || true
+  #             docker rm delivery-backend || true
+  #             docker run -d --name delivery-backend -p 8080:8080 openjdk:11 java -jar /home/ubuntu/backend.jar
+  #             sudo systemctl restart nginx
+  #             echo "Deployment completed on $(ec2Host)"
+  #           EOF
+  #       env:
+  #         bucketName: $(bucketName)
+  #         stackName: 'DeliveryAppStack'
+  #         awsRegion: 'us-east-1'
