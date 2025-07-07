@@ -37,7 +37,7 @@ Resources:
       SecurityGroupIds:
         - !Ref SecurityGroup
       SubnetId: !Ref SubnetId
-      AssociatePublicIpAddress: true
+      # AssociatePublicIpAddress: true
       IamInstanceProfile: !Ref EC2InstanceProfile
       UserData:
         Fn::Base64: !Sub |
