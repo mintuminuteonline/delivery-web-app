@@ -88,8 +88,20 @@ jobs:
           targetType: 'inline'
           script: |
             cd frontend
+            echo "Listing frontend directory:"
+            ls -R .
+            if [ ! -f "public/index.html" ]; then
+              echo "Error: public/index.html not found"
+              exit 1
+            fi
             npm install
+            npm audit fix
             npm run build
+            if [ ! -d "build" ]; then
+              echo "Error: build directory not created"
+              exit 1
+            fi
+            echo "Listing build directory:"
             ls -R build
       - task: AWSShellScript@1
         displayName: 'Upload Artifacts to S3'
