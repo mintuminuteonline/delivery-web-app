@@ -1,0 +1,134 @@
+trigger:
+  branches:
+    include:
+      - main
+pr: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  awsServiceConnection: 'aws-oidc-federation'
+  awsRegion: 'us-east-1'
+  bucketName: 'delivery-web-app-bucket-20250707'
+  stackName: 'DeliveryAppStack'
+  cloudFormationTemplate: '$(System.DefaultWorkingDirectory)/cloudformation.yml'
+  keyName: 'delivery-keypair'
+
+jobs:
+  - job: DeployInfrastructure
+    displayName: 'Deploy CloudFormation Stack'
+    steps:
+      - checkout: self
+        displayName: 'Checkout GitHub Repository'
+        fetchDepth: 0
+      - task: AWSShellScript@1
+        displayName: 'Check and Delete Stuck CloudFormation Stack'
+        inputs:
+          awsCredentials: '$(awsServiceConnection)'
+          regionName: '$(awsRegion)'
+          scriptType: 'inline'
+          inlineScript: |
+            echo "Checking stack status: $(stackName)"
+            stack_status=$(aws cloudformation describe-stacks --stack-name $(stackName) --region $(awsRegion) --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+            if [[ "$stack_status" == "ROLLBACK_FAILED" || "$stack_status" == "ROLLBACK_COMPLETE" ]]; then
+              echo "Stack is in $stack_status state. Attempting to delete..."
+              aws cloudformation delete-stack --stack-name $(stackName) --region $(awsRegion)
+              aws cloudformation wait stack-delete-complete --stack-name $(stackName) --region $(awsRegion) || echo "Stack deletion may require manual cleanup"
+            else
+              echo "Stack status: $stack_status"
+            fi
+      - task: AWSShellScript@1
+        displayName: 'Validate CloudFormation Template'
+        inputs:
+          awsCredentials: '$(awsServiceConnection)'
+          regionName: '$(awsRegion)'
+          scriptType: 'inline'
+          inlineScript: |
+            aws cloudformation validate-template --template-body file://$(cloudFormationTemplate)
+      - task: AWSShellScript@1
+        displayName: 'Deploy CloudFormation Stack'
+        inputs:
+          awsCredentials: '$(awsServiceConnection)'
+          regionName: '$(awsRegion)'
+          scriptType: 'inline'
+          inlineScript: |
+            echo "Deploying stack: $(stackName)"
+            aws cloudformation deploy \
+              --template-file $(cloudFormationTemplate) \
+              --stack-name $(stackName) \
+              --parameter-overrides KeyName=$(keyName) \
+              --capabilities CAPABILITY_IAM \
+              --no-fail-on-empty-changeset || \
+            { echo "Deployment failed. Fetching stack events..."; \
+              aws cloudformation describe-stack-events --stack-name $(stackName) --region $(awsRegion); \
+              exit 1; }
+            echo "Retrieving EC2 public IP..."
+            ec2_public_ip=$(aws cloudformation describe-stacks --stack-name $(stackName) --region $(awsRegion) --query 'Stacks[0].Outputs[?OutputKey==`InstancePublicIP`].OutputValue' --output text)
+            echo "##vso[task.setvariable variable=ec2Host;isOutput=true]$ec2_public_ip"
+        name: cloudFormation
+  - job: BuildAndUpload
+    displayName: 'Build and Upload to S3'
+    dependsOn: DeployInfrastructure
+    condition: succeeded()
+    steps:
+      - checkout: self
+        displayName: 'Checkout GitHub Repository'
+        fetchDepth: 0
+      - task: Maven@3
+        displayName: 'Build Backend'
+        inputs:
+          mavenPomFile: 'backend/pom.xml'
+          goals: 'package'
+          publishJUnitResults: true
+          testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      - task: Bash@3
+        displayName: 'Build Frontend'
+        inputs:
+          targetType: 'inline'
+          script: |
+            cd frontend
+            npm install
+            npm run build
+            ls -R build
+      - task: AWSShellScript@1
+        displayName: 'Upload Artifacts to S3'
+        inputs:
+          awsCredentials: '$(awsServiceConnection)'
+          regionName: '$(awsRegion)'
+          scriptType: 'inline'
+          inlineScript: |
+            echo "Uploading backend.jar to s3://$(bucketName)/backend.jar"
+            aws s3 cp backend/target/delivery-backend-0.0.1-SNAPSHOT.jar s3://$(bucketName)/backend.jar || { echo "Error: Failed to upload backend.jar"; exit 1; }
+            echo "Uploading frontend build to s3://$(bucketName)/frontend/"
+            aws s3 cp frontend/build s3://$(bucketName)/frontend/ --recursive || { echo "Error: Failed to upload frontend build"; exit 1; }
+            echo "Verifying uploaded files in S3:"
+            aws s3 ls s3://$(bucketName)/ --recursive
+  - job: DeployToEC2
+    displayName: 'Deploy to EC2'
+    dependsOn: BuildAndUpload
+    condition: succeeded()
+    variables:
+      ec2Host: $[ dependencies.DeployInfrastructure.outputs['cloudFormation.ec2Host'] ]
+    steps:
+      - checkout: self
+        displayName: 'Checkout GitHub Repository'
+      - task: Bash@3
+        displayName: 'Deploy to EC2 via SSH'
+        inputs:
+          targetType: 'inline'
+          script: |
+            echo "$(sshKey)" > delivery-keypair.pem
+            chmod 400 delivery-keypair.pem
+            ssh -o StrictHostKeyChecking=no -i delivery-keypair.pem ubuntu@$(ec2Host) << 'EOF'
+              aws s3 cp s3://$(bucketName)/backend.jar /home/ubuntu/backend.jar
+              aws s3 cp s3://$(bucketName)/frontend/ /var/www/html/ --recursive
+              docker stop delivery-backend || true
+              docker rm delivery-backend || true
+              docker run -d --name delivery-backend -p 8080:8080 openjdk:11 java -jar /home/ubuntu/backend.jar
+              sudo systemctl restart nginx
+              echo "Deployment completed on $(ec2Host)"
+            EOF
+        env:
+          sshKey: $(sshKey)
+          bucketName: $(bucketName)
