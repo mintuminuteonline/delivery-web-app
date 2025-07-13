@@ -1,18 +1,15 @@
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
-import OrderForm from './components/OrderForm';
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
 import OrderList from './components/OrderList';
+import OrderForm from './components/OrderForm';
 
-function App() {
+const App = () => {
   return (
-    <Router>
-      <div className="App">
-        <Switch>
-          <Route exact path="/" component={OrderForm} />
-          <Route path="/admin" component={OrderList} />
-        </Switch>
-      </div>
-    </Router>
+    <Routes>
+      <Route path="/orders" element={<OrderList />} />
+      <Route path="/" element={<OrderForm />} />
+    </Routes>
   );
-}
+};
 
-export default App;
+export default App; // Default export
